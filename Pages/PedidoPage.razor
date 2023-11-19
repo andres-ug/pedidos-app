@@ -1,0 +1,169 @@
+﻿@page "/pedido"
+@using PedidosApp.Models
+@using PedidosApp.Services
+@using Microsoft.EntityFrameworkCore.Scaffolding
+@using PedidosApp.Repository
+@using System.Text.Json
+@inject PedidoService pedidoService
+@inject ComidaService comidaService
+@inject ISnackbar MudSnackbar
+@inject PedidoDbContext dbContext
+
+<PageTitle>Creacion de pedido</PageTitle>
+
+<MudText Typo="Typo.h4" GutterBottom="true">Creacion de pedido</MudText>
+<MudText Class="mb-8">Llena los datos acerca del pedido.</MudText>
+
+<EditForm Model="@(model)" OnValidSubmit="Submit">
+    <DataAnnotationsValidator/>
+    <MudGrid Spacing="2">
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Nombre del Cliente" Required="true" @bind-Value="model.NombreCliente" For="@(() => model.NombreCliente)"/>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Email del Cliente" Required="true" Type="InputType.Email" @bind-Value="model.Email"
+                          For="@(() => model.Email)"/>
+        </MudItem>
+        <MudItem xs="12" md="6">
+            <MudTextField Label="Telefono del Cliente" Required="true" InputType="InputType.Number" @bind-Value="model.Telefono"
+                          For="@(() => model.Telefono)"/>
+        </MudItem>
+        <MudItem xs="12">
+            <MudTextField Label="Direccion del Cliente" Required="true" @bind-Value="model.Direccion" For="@(() => model.Direccion)"/>
+        </MudItem>
+
+        <MudItem xs="12">
+            <MudButton Variant="Variant.Filled" Color="Color.Secondary" OnClick="OpenDialog">Seleccionar comida/s</MudButton>
+        </MudItem>
+        <MudItem xs="12">
+            <MudTable Items="@(model.Detalles)" T="DetallePedido">
+                <HeaderContent>
+                    <MudTh>Nombre</MudTh>
+                    <MudTh>Cantidad</MudTh>
+                    <MudTh>Acciones</MudTh>
+                </HeaderContent>
+                <RowTemplate Context="detalle">
+                    <MudTd DataLabel="Nombre">@(comidas.First(c => c.Id == detalle.ComidaId).Nombre)</MudTd>
+                    <MudTd DataLabel="Cantidad">
+                        <MudNumericField T="int" Value="@detalle.Cantidad" ValueChanged="nuevaCant => ChangeCantidad(detalle.ComidaId, nuevaCant)"/>
+                    </MudTd>
+                    <MudTd>
+                        <MudButton Variant="Variant.Filled" Color="Color.Error" OnClick="() => RemoveComida(detalle)">Eliminar</MudButton>
+                    </MudTd>
+                </RowTemplate>
+            </MudTable>
+            <MudGrid>
+                <MudItem xs="4"></MudItem>
+
+                <MudItem xs="4">
+                    <MudList>
+                        <MudListItem align="right">SubTotal:</MudListItem>
+                        <MudListItem align="right">IVA (12%):</MudListItem>
+                        <MudListItem align="right">Total:</MudListItem>
+                    </MudList>
+                </MudItem>
+                <MudItem xs="4">
+                    <MudList>
+                        <MudListItem align="right" DataLabel="SubTotal">@(model.Detalles?.Sum(c => c.Cantidad * comidas.First(x => x.Id == c.ComidaId).Precio).ToString("C"))</MudListItem>
+                        <MudListItem align="right" DataLabel="IVA">@(model.Detalles?.Sum(c => c.Cantidad * comidas.First(x => x.Id == c.ComidaId).Precio * 0.12M).ToString("C"))</MudListItem>
+                        <MudListItem align="right" DataLabel="Total">@(model.Detalles?.Sum(c => c.Cantidad * comidas.First(x => x.Id == c.ComidaId).Precio * 1.12M).ToString("C"))</MudListItem>
+                    </MudList>
+                </MudItem>
+            </MudGrid>
+        </MudItem>
+
+        <MudItem xs="12" Class="d-flex row-reverse">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" ButtonType="ButtonType.Submit">Crear pedido</MudButton>
+        </MudItem>
+    </MudGrid>
+</EditForm>
+
+<MudDialog IsVisible="@isDialogOpen" IsVisibleChanged="b => isDialogOpen = b">
+    <DialogContent>
+        <MudTable Items="@comidas" T="Comida">
+            <HeaderContent>
+                <MudTh>Nombre</MudTh>
+                <MudTh>Precio</MudTh>
+                <MudTh>Acciones</MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Nombre">@(context?.Nombre ?? "")</MudTd>
+                <MudTd DataLabel="Precio">@(context.Precio)</MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Text" Color="Color.Primary" OnClick="() => SelectComida(context)">Seleccionar</MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CloseDialog">Aceptar</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    EditForm form;
+    private Pedido model = new();
+    private List<Comida> comidas = new();
+    private bool isDialogOpen;
+
+    protected override async Task OnInitializedAsync()
+    {
+        comidas = await comidaService.ObtenerTodas();
+    }
+
+    private void OpenDialog()
+    {
+        isDialogOpen = true;
+    }
+
+    private void CloseDialog()
+    {
+        isDialogOpen = false;
+    }
+
+    private void ChangeCantidad(Guid comidaId, int nuevaCant)
+    {
+        model.Detalles.First(d => d.ComidaId == comidaId).Cantidad = nuevaCant;
+    }
+
+    private void SelectComida(Comida comida)
+    {
+        var existingDetalle = model.Detalles.FirstOrDefault(d => d.ComidaId == comida.Id);
+
+        if (existingDetalle != null)
+        {
+            existingDetalle.Cantidad += 1;
+            MudSnackbar.Add("Comida agregada exitosamente", Severity.Success);
+        }
+        else
+        {
+            model.Detalles.Add(new() { Cantidad = 1, ComidaId = comida.Id, PedidoId = model.Id });
+            MudSnackbar.Add("Comida agregada exitosamente", Severity.Success);
+        }
+    }
+
+    private void RemoveComida(DetallePedido detalle)
+    {
+        model.Detalles.Remove(detalle);
+        MudSnackbar.Add("Comida eliminada exitosamente", Severity.Success);
+    }
+
+    private async Task Submit()
+    {
+        try
+        {
+            model.Detalles.ForEach(d => d.Comida = comidas.First(c => c.Id == d.ComidaId));
+            await pedidoService.AgregarPedido(model); // Agregar el pedido primero
+            await dbContext.SaveChangesAsync();
+
+            MudSnackbar.Add("Pedido creado exitosamente", Severity.Success);
+            model = new();
+        }
+        catch (Exception e)
+        {
+            MudSnackbar.Add("Error generando el pedido: " + e.InnerException?.Message, Severity.Error);
+        }
+    }
+
+
+}

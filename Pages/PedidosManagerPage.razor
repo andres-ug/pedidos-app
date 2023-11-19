@@ -1,0 +1,96 @@
+﻿@page "/pedidos"
+@using MudBlazor
+@using PedidosApp.Models
+@using PedidosApp.Services
+@inject PedidoService pedidoService
+@inject ISnackbar MudSnackbar
+
+<PageTitle>Lista de Pedidos</PageTitle>
+
+<MudContainer>
+    <MudPaper Elevation="3" Class="mt-4">
+        <MudTable Items="@pedidos" T="Pedido">
+            <HeaderContent>
+                <MudTh>Cliente</MudTh>
+                <MudTh>Email</MudTh>
+                <MudTh>Teléfono</MudTh>
+                <MudTh>Dirección</MudTh>
+                <MudTh>Detalles</MudTh>
+                <MudTh></MudTh>
+            </HeaderContent>
+            <RowTemplate>
+                <MudTd DataLabel="Cliente">@context.NombreCliente</MudTd>
+                <MudTd DataLabel="Email">@context.Email</MudTd>
+                <MudTd DataLabel="Teléfono">@context.Telefono</MudTd>
+                <MudTd DataLabel="Dirección">@context.Direccion</MudTd>
+                <MudTd DataLabel="Total">@context.Total.ToString("C")</MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" OnClick="() => MostrarDetalles(context)">Detalles</MudButton>
+                </MudTd>
+                <MudTd>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" OnClick="() => EliminarPedido(context)">Eliminar</MudButton>
+                </MudTd>
+            </RowTemplate>
+        </MudTable>
+    </MudPaper>
+
+    <MudDialog IsVisible="@detallesVisible">
+        <DialogContent>
+            <MudTable Items="@pedidoSeleccionado.Detalles">
+                <HeaderContent>
+                    <MudTh>Comida</MudTh>
+                    <MudTh>Cantidad</MudTh>
+                    <MudTh>Precio Unitario</MudTh>
+                    <MudTh>Total</MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd DataLabel="Comida">@context.Comida.Nombre</MudTd>
+                    <MudTd DataLabel="Cantidad">@context.Cantidad</MudTd>
+                    <MudTd DataLabel="Precio Unitario">@context.Comida.Precio.ToString("C")</MudTd>
+                    <MudTd DataLabel="Total">@((context.Cantidad * context.Comida.Precio).ToString("C"))</MudTd>
+                </RowTemplate>
+            </MudTable>
+        </DialogContent>
+        <DialogActions>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="CerrarDetalles">Cerrar</MudButton>
+        </DialogActions>
+    </MudDialog>
+</MudContainer>
+
+@code {
+    private List<Pedido> pedidos = new();
+    private bool detallesVisible;
+    private Pedido pedidoSeleccionado;
+
+    protected override async Task OnInitializedAsync()
+    {
+    // Obtener la lista de pedidos al cargar la página
+        pedidos = await pedidoService.ObtenerTodos();
+    }
+
+    private void MostrarDetalles(Pedido pedido)
+    {
+    // Lógica para mostrar los detalles del pedido (puedes personalizar esto)
+        detallesVisible = true;
+        pedidoSeleccionado = pedido;
+    }
+
+    private void CerrarDetalles()
+    {
+        detallesVisible = false;
+    }
+
+    private async void EliminarPedido(Pedido pedido)
+    {
+        try
+        {
+            await pedidoService.EliminarPedido(pedido.Id);
+            pedidos.Remove(pedido);
+        }
+        catch (Exception e)
+        {
+            MudSnackbar.Add("Error eliminando el pedido: " + (e.InnerException?.Message ?? e.Message), Severity.Error);
+        }
+    }
+
+}
